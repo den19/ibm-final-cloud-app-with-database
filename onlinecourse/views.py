@@ -102,6 +102,57 @@ def enroll(request, course_id):
 
     return HttpResponseRedirect(reverse(viewname='onlinecourse:course_details', args=(course.id,)))
 
+def submit(request, course_id):
+    course = get_object_or_404(Course, pk=course_id)
+    user = request.user
+    enrollment = Enrollment.objects.get(user=user, course=course)
+    submitted_anwsers = []
+    submission = Submission.objects.create(enrollment=enrollment)
+    for key in request.POST:
+        print("key", key)
+        if key.startswith('choice'):
+            value = request.POST[key]
+            choice_id = int(value)
+            print(choice_id)
+            choice = Choice.objects.get(id = choice_id)
+            submitted_anwsers.append(choice_id)
+            submission.choices.add(choice)
+    
+    submission.save()
+    return HttpResponseRedirect(reverse(viewname='onlinecourse:results', args=[course.id, submission.id]))
+    
+# <HINT> Create an exam result view to check if learner passed exam and show their question results and result for each question,
+# you may implement it based on the following logic:
+        # Get course and submission based on their ids
+        # Get the selected choice ids from the submission record
+        # For each selected choice, check if it is a correct answer or not
+        # Calculate the total score
+def show_exam_result(request, course_id, submission_id):
+    context = {}
+    course = get_object_or_404(Course, pk=course_id)
+    questions = course.question_set.all()
+    submission = get_object_or_404(Submission, pk=submission_id)
+    choices = submission.choices.all()
+    selected_ids = [choice.id for choice in choices]
+    grade = 0
+    total_points = 0
+    for question in questions:
+        total_points += question.grade_points
+    #check answers
+    all_selected_ids = []
+    for question in questions:
+        selected_ids = [choice.id for choice in choices if choice.question == question]
+        all_selected_ids = all_selected_ids + selected_ids
+        if question.is_get_score(selected_ids):
+            grade += question.grade_points/total_points*100
+    #set context
+    context["grade"]= round(grade)
+    context["course"]=course
+    context["submission"]=submission
+    context["choices"]=choices
+    context["selected_ids"]=all_selected_ids
+
+    return render(request, 'onlinecourse/exam_result_bootstrap.html', context)
 
 # <HINT> Create a submit view to create an exam submission record for a course enrollment,
 # you may implement it based on following logic:
